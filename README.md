@@ -1,117 +1,163 @@
-# Agent Architecture Tutorial
+# Unix-Primitive Agent Architecture
 
-An interactive terminal tutorial teaching modern AI agent architecture patterns, based on research from Anthropic, Manus, Cursor, and Fly.io (January 2026).
+An interactive curriculum teaching Unix fundamentals as the foundation for understanding and building agentic systems.
+
+## The Thesis
+
+**The terminal is the native mental model for agentic orchestration.**
+
+Unix primitives (processes, files, pipes, signals, exit codes) provide:
+- **Legibility**: You can always inspect what's happening
+- **Observability**: `ps`, `ls`, `cat`, `strace` work on everything
+- **Composability**: Small tools combine into complex workflows
+- **Provenance**: You can trace cause to effect
+
+As work increasingly means "working with agents," these properties become more relevant, not less. The correct response to AI opacity is not to accept it, but to demand legibility at the architectural level.
+
+## The Inversion
+
+Traditional developer ergonomics:
+```
+Human writes code → Code should be readable by humans
+```
+
+Agent-era ergonomics:
+```
+Agent writes code → Human verifies behavior → Behavior should be observable
+```
+
+This curriculum optimizes for the new bottleneck: **observability over authorship ergonomics**.
+
+## The Gradient
 
 ```
-   _                    _      _             _     _ _            _
-  /_\  __ _ ___ _ _  | |_   /_\  _ _ __| |_ (_) |_ ___ __| |_ _  _ _ _ ___
- / _ \/ _` / -_) ' \ |  _| / _ \| '_/ _| ' \| |  _/ -_) _|  _| || | '_/ -_)
-/_/ \_\__, \___|_||_| \__| /_/ \_\_| \__|_||_|_|\__\___\__|\__|\___/|_| \___|
-      |___/
+Pure Unix ──────────────────────────────────────► Higher Abstraction
+    │                                                     │
+    ▼                                                     ▼
+  Bash                                                 Elixir
+    │                                                     │
+Maximum observability                    Unix paradigm at scale
+Awkward for complex logic               (processes, supervision, messages)
 ```
 
-## Quick Start
+**Default to Unix/Bash.** When performance or complexity demands, **escalate to Elixir**—which preserves Unix's process model at a higher level. No other runtime abstraction.
+
+## Curriculum Structure
+
+### Phase 1: Unix by Doing
+
+Learn Unix fundamentals through interactive exercises. Each lesson: *do something*, then *observe it with Unix tools*.
+
+| Lesson | Concept | You Will Observe |
+|--------|---------|------------------|
+| 01 | Everything is a File | /proc, /dev, file descriptors |
+| 02 | Processes | fork, exec, ps, process trees |
+| 03 | Signals | SIGTERM, SIGHUP, trap |
+| 04 | Pipes and Composition | stdin/stdout, pipelines, tee |
+| 05 | Exit Codes | Success/failure contracts |
+| 06 | Environment and State | Variables, files as state |
+| 07 | Process Supervision | Job control, restart on failure |
+
+### Phase 2: Unix → Elixir Mapping
+
+Explicitly map Unix concepts to Elixir/BEAM equivalents. Not a new paradigm—the same paradigm at a different scale.
+
+| Unix | Elixir | Same Concept |
+|------|--------|--------------|
+| OS process | BEAM process | Isolated execution unit |
+| Signals | Messages | Inter-process communication |
+| Pipes | GenStage/Flow | Data transformation chains |
+| systemd | Supervisor | Process supervision |
+| Files | GenServer + persistence | Inspectable state |
+
+### Phase 3: Build an Agent from First Principles
+
+Following [Ptacek's "Everyone Write an Agent"](https://fly.io/blog/everyone-write-an-agent/) as north star:
+
+1. The irreducible agent (15 lines)
+2. Adding tools as executables
+3. Context as append-only files
+4. Multi-turn conversation
+5. Multiple agents as processes
+6. Supervision and recovery
+
+At each step: build it, then observe it with Unix tools.
+
+### Phase 4: Dissect Existing Tools
+
+Apply understanding to Claude Code, Opencode, and similar:
+
+1. What processes exist when they run?
+2. Where is state stored? Is it inspectable?
+3. How do tools get invoked?
+4. What's observable vs opaque?
+5. Rebuild observable parts with Unix primitives
+6. Document what remains hidden
+
+## The Observation Toolkit
+
+These tools transfer across all phases:
 
 ```bash
-# Install dependencies
-npm install
-
-# Run the tutorial
-npm run dev
+ps aux | grep [p]rocess    # What's running?
+pstree -p $$               # Process hierarchy
+ls -la /proc/$PID/fd       # Open file descriptors
+cat /path/to/state         # Current state
+tail -f /path/to/log       # Live activity
+strace -f -p $PID          # System calls
+lsof -p $PID               # Open files
 ```
 
-## What You'll Learn
+The tools don't change. What you observe does.
 
-### Lesson 1: The Agent Loop
-- The fundamental while-loop pattern all agents follow
-- Context = System prompt + History
-- Tool calls vs final responses
+## Why This Matters
 
-### Lesson 2: Context Engineering
-- Why context engineering replaced prompt engineering
-- Progressive disclosure patterns
-- KV-cache optimization (10x cost savings)
-- Context indirection for large data
+> "If you can't see the context, you're not engineering—you're hoping."
 
-### Lesson 3: Multi-Agent Patterns
-- When single agents aren't enough
-- Plan/Execution/Task architecture
-- Central planning vs dynamic coordination
-- Cursor's findings from multi-agent experiments
+Opaque systems create priesthoods: those who claim to understand interpret mysteries for those who don't. Unix embeds a different epistemology: **understanding comes from observation**. Anyone can become expert by watching the system work.
 
-### Lesson 4: Inside Claude Code
-- Core tools: bash, read, write, edit, glob, grep
-- The CLAUDE.md file for progressive disclosure
-- The Bitter Lesson applied to agent design
-- Why generic tools beat specialized ones
+In an era of LLM-generated code and AI agents, this matters more:
+- Non-determinism makes behavioral learning unreliable
+- You can't trial-and-error your way to understanding
+- Structural observability becomes the only stable ground
 
-### Lesson 5: Build Your Own Agent
-Three tracks to choose from:
-- **Unix Track**: Build with bash, curl, and jq
-- **SDK Track**: Use the Anthropic TypeScript SDK
-- **BEAM Track**: Elixir/OTP for fault-tolerant multi-agent systems
-
-## Navigation
-
-| Key | Action |
-|-----|--------|
-| `→` or `n` | Next step/lesson |
-| `←` or `p` | Previous step/lesson |
-| `1-5` | Jump to lesson (from home) |
-| `Enter` | Start from Lesson 1 |
-| `q` | Quit |
-
-## Example Code
-
-The `examples/` directory contains working implementations:
-
-- `unix-agent.sh` - Complete bash agent with tools
-- `sdk-agent.ts` - TypeScript SDK implementation
-- `beam-agent.ex` - Elixir/OTP multi-agent system
-- `sample-CLAUDE.md` - Example project configuration
-
-## Key Concepts
-
-### The Central Thesis
-> "All agents will become coding agents."
-
-The LLM + Computer architecture—file system, bash terminal, code generation—is exceptionally powerful regardless of whether your task involves writing code.
-
-### The Bitter Lesson
-Model improvements obsolete complex harnesses. Build systems that benefit from smarter models rather than working around their limitations.
-
-### Context Engineering
-What configuration of context is most likely to generate the model's desired behavior? This has replaced prompt engineering as the primary skill.
-
-## Project Structure
+## Directory Structure
 
 ```
 .
-├── src/
-│   ├── index.tsx              # Main entry, lesson router
-│   ├── components/            # UI components
-│   ├── lessons/               # Lesson content
-│   └── utils/                 # Theme, constants
-├── examples/                  # Working code samples
-├── package.json
-└── tsconfig.json
+├── phase1-unix-fundamentals/     # Learn Unix by doing
+│   ├── lesson01-everything-is-a-file/
+│   ├── lesson02-processes/
+│   ├── lesson03-signals/
+│   ├── lesson04-pipes-composition/
+│   ├── lesson05-exit-codes/
+│   ├── lesson06-environment-state/
+│   └── lesson07-process-supervision/
+├── phase2-unix-to-elixir/        # Map concepts to BEAM
+├── phase3-build-agent/           # Construct from first principles
+├── phase4-dissect-existing/      # Apply lens to CC/Opencode
+├── learnings/                    # Analysis and synthesis
+└── examples/                     # Reference implementations
 ```
 
-## Requirements
+## Getting Started
 
-- Node.js 20+
-- Terminal with ANSI color support
-- Minimum 80 column width recommended
+```bash
+cd phase1-unix-fundamentals/lesson01-everything-is-a-file
+./lesson.sh
+```
+
+Each lesson is self-contained and teaches through doing.
 
 ## Credits
 
 Based on research and insights from:
-- Anthropic Engineering (Claude Code)
+- [Thomas Ptacek / Fly.io](https://fly.io/blog/everyone-write-an-agent/) - Agent primitives
+- [Shrivu Shankar](https://blog.sshh.io) - Multi-agent evolution
+- Anthropic Engineering - Claude Code architecture
 - Manus (Peak Ji) - Context engineering
-- Cursor - Multi-agent experiments
-- Fly.io (Kurt Mackey) - Sprites architecture
-- Shrivu Shankar - Agent patterns synthesis
-- Davis Treybig - "LLM + Computer" paradigm
+- Rich Sutton - The Bitter Lesson
+- The Unix tradition - Thompson, Ritchie, McIlroy
 
 ## License
 

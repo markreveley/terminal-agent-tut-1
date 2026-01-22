@@ -1,329 +1,238 @@
-# Terminal TUI Comparison: Three Implementations
+# Bash vs Elixir: An Observability-First Comparison
 
-## Executive Summary
+## Overview
 
-Building the same interactive tutorial in three different stacks reveals the fundamental trade-offs in terminal UI development:
-
-| Stack | Lines of Code | Dependencies | Best For |
-|-------|---------------|--------------|----------|
-| **Node.js/Ink** | ~1,200 | 59 packages | Rich UIs, rapid development |
-| **Elixir/Termite** | ~1,100 | 1 package | Fault tolerance, concurrency |
-| **Pure Bash** | ~900 | 0 | Zero-dependency, portability |
+This comparison evaluates Bash and Elixir through the lens of the Unix-primitive thesis: **observability over authorship ergonomics**.
 
 ---
 
-## The Three Approaches
+## The Fundamental Trade-off
 
-### 1. Node.js/Ink - Component-Based React
-
-```
-┌─────────────────────────────────────────┐
-│  React Components (JSX)                 │
-│  ├── useState for state                 │
-│  ├── useInput for keyboard              │
-│  └── Flexbox for layout                 │
-├─────────────────────────────────────────┤
-│  Ink Runtime                            │
-│  └── Virtual DOM → ANSI                 │
-└─────────────────────────────────────────┘
-```
-
-### 2. Elixir/Termite - Process-Based Elm Architecture
-
-```
-┌─────────────────────────────────────────┐
-│  GenServer (State Process)              │
-│  ├── Immutable state struct             │
-│  └── Message-based updates              │
-├─────────────────────────────────────────┤
-│  Event Loop                             │
-│  ├── Terminal.poll() for input          │
-│  └── Pattern matching dispatch          │
-├─────────────────────────────────────────┤
-│  Termite                                │
-│  └── Direct ANSI sequences              │
-└─────────────────────────────────────────┘
-```
-
-### 3. Pure Bash - Functions and Variables
-
-```
-┌─────────────────────────────────────────┐
-│  Global Variables (State)               │
-│  └── SCREEN, STEP, LESSON               │
-├─────────────────────────────────────────┤
-│  While Loop                             │
-│  ├── render()                           │
-│  ├── read_key()                         │
-│  └── handle_input()                     │
-├─────────────────────────────────────────┤
-│  printf/echo                            │
-│  └── Raw ANSI escape codes              │
-└─────────────────────────────────────────┘
-```
+| Dimension | Bash | Elixir |
+|-----------|------|--------|
+| Observability | Maximum | High (preserves Unix model) |
+| Authorship ergonomics | Low | High |
+| Concurrency | Fork-based (heavy) | BEAM processes (light) |
+| Fault tolerance | Manual | Built-in supervision |
+| State inspection | Files (cat, less) | :sys.get_state/1 |
+| Learning curve | Steep but universal | Steep but rewarding |
 
 ---
 
 ## Detailed Comparison
 
-### Startup Time
-
-| Stack | Cold Start | Warm Start |
-|-------|------------|------------|
-| Bash | ~10ms | ~10ms |
-| Node.js/Ink | ~200ms | ~150ms |
-| Elixir/Termite | ~500ms | ~300ms |
-
-**Winner: Bash** - No runtime to load
-
-### Memory Usage
-
-| Stack | Baseline | With Tutorial |
-|-------|----------|---------------|
-| Bash | ~2MB | ~3MB |
-| Node.js | ~50MB | ~60MB |
-| Elixir | ~30MB | ~35MB |
-
-**Winner: Bash** - Shell process only
-
-### Development Speed
-
-| Task | Bash | Node.js/Ink | Elixir/Termite |
-|------|------|-------------|----------------|
-| Setup project | 0 min | 5 min | 5 min |
-| Create component | Medium | Fast | Medium |
-| Add keyboard handling | Manual | Built-in | Manual |
-| Style text | Manual ANSI | Props | Functions |
-| Debug | Hard | Easy | Medium |
-
-**Winner: Node.js/Ink** - Familiar patterns, good tooling
-
-### Maintainability
-
-| Factor | Bash | Node.js/Ink | Elixir/Termite |
-|--------|------|-------------|----------------|
-| Type safety | None | TypeScript | Dialyzer |
-| Code organization | Functions | Components | Modules |
-| Testing | Difficult | Jest/RTL | ExUnit |
-| Refactoring | Risky | Safe | Safe |
-
-**Winner: Node.js/Ink** (with TypeScript)
-
-### Reliability
-
-| Factor | Bash | Node.js/Ink | Elixir/Termite |
-|--------|------|-------------|----------------|
-| Error handling | Manual | Try/catch | Supervisors |
-| Process isolation | None | None | Full |
-| Recovery | Crash | Crash | Restart |
-| Long-running | Risky | Okay | Excellent |
-
-**Winner: Elixir/Termite** - BEAM's fault tolerance
-
-### Portability
-
-| Platform | Bash | Node.js/Ink | Elixir/Termite |
-|----------|------|-------------|----------------|
-| Linux | ✅ Native | ✅ Node required | ✅ BEAM required |
-| macOS | ✅ Native | ✅ Node required | ✅ BEAM required |
-| Windows | ⚠️ WSL/Git Bash | ✅ Node required | ✅ BEAM required |
-| Docker | ✅ Tiny image | ⚠️ ~200MB image | ⚠️ ~100MB image |
-| Embedded | ✅ BusyBox | ❌ Too heavy | ❌ Too heavy |
-
-**Winner: Bash** - Available everywhere
-
----
-
-## Code Comparison
-
 ### State Management
 
-**Bash:**
+**Bash: Files as State**
 ```bash
-# Global variables
-SCREEN="home"
-STEP=0
-LESSON=1
+# State is visible as files
+echo '{"turn": 1, "content": "hello"}' >> context.jsonl
 
-# Update by assignment
-next_step() {
-    ((STEP++))
-}
+# Inspection is trivial
+cat context.jsonl
+tail -f context.jsonl
+wc -l context.jsonl
 ```
 
-**Node.js/Ink:**
-```tsx
-const [screen, setScreen] = useState('home');
-const [step, setStep] = useState(0);
-
-const nextStep = () => setStep(s => s + 1);
-```
-
-**Elixir/Termite:**
+**Elixir: GenServer State**
 ```elixir
-defstruct screen: :home, step: 0
+# State lives in a process
+defmodule Agent do
+  use GenServer
 
-def handle_cast(:next_step, state) do
-  {:noreply, %{state | step: state.step + 1}}
+  def init(_), do: {:ok, %{turns: [], current: nil}}
+
+  def handle_cast({:add_turn, turn}, state) do
+    {:noreply, %{state | turns: [turn | state.turns]}}
+  end
 end
+
+# Inspection still possible
+:sys.get_state(Agent)
 ```
 
-### Input Handling
+**Verdict:** Bash state is more directly observable, but Elixir state can still be inspected and offers better structure.
 
-**Bash:**
+### Process Supervision
+
+**Bash: Manual Loops**
 ```bash
-read_key() {
-    IFS= read -rsn1 key
-    if [[ "$key" == $'\e' ]]; then
-        read -rsn2 -t 0.1 seq
-        case "$seq" in
-            '[C') key="n" ;;  # Right arrow
-        esac
+#!/bin/bash
+BACKOFF=1
+while true; do
+    ./worker.sh
+    code=$?
+    if [[ $code -ne 0 ]]; then
+        echo "Worker crashed ($code), waiting ${BACKOFF}s"
+        sleep $BACKOFF
+        BACKOFF=$((BACKOFF * 2))
+        [[ $BACKOFF -gt 60 ]] && BACKOFF=60
+    else
+        BACKOFF=1
     fi
-    echo "$key"
-}
+done
 ```
 
-**Node.js/Ink:**
-```tsx
-useInput((input, key) => {
-    if (key.rightArrow) nextStep();
-});
-```
-
-**Elixir/Termite:**
+**Elixir: Declarative Supervision**
 ```elixir
-case Termite.Terminal.poll(term, 100) do
-    {:data, "\e[C"} -> State.next_step()
+children = [
+  {Worker, restart: :permanent},
+  {ToolRunner, restart: :transient}
+]
+Supervisor.start_link(children, strategy: :one_for_one)
+```
+
+**Verdict:** Elixir supervision is more sophisticated and declarative. Bash requires manual implementation but the logic is explicit and traceable.
+
+### Concurrency
+
+**Bash: Fork-based**
+```bash
+# Each background job is an OS process
+for i in {1..10}; do
+    process_item "$i" &
+done
+wait
+```
+
+**Elixir: Lightweight Processes**
+```elixir
+# 100,000 concurrent processes are fine
+Enum.each(1..100_000, fn i ->
+  spawn(fn -> process_item(i) end)
+end)
+```
+
+**Verdict:** Elixir wins decisively for high-concurrency scenarios. Bash is fine for ~dozens of concurrent operations.
+
+### Inter-Process Communication
+
+**Bash: Pipes and Files**
+```bash
+# Named pipe for IPC
+mkfifo /tmp/agent_pipe
+producer > /tmp/agent_pipe &
+consumer < /tmp/agent_pipe
+
+# Or files
+echo "command" >> /tmp/commands.fifo
+inotifywait -m /tmp/commands.fifo | while read; do
+    process_command
+done
+```
+
+**Elixir: Message Passing**
+```elixir
+# Direct message passing
+send(worker_pid, {:task, data})
+
+# Receive with pattern matching
+receive do
+  {:task, data} -> process(data)
+  {:shutdown} -> cleanup()
+after
+  5000 -> handle_timeout()
 end
 ```
 
-### Colored Output
+**Verdict:** Elixir's message passing is more ergonomic. Bash pipes are directly observable with `tee`.
 
-**Bash:**
+### Error Handling
+
+**Bash: Exit Codes**
 ```bash
-cprint() {
-    printf "\033[38;5;${1}m%s\033[0m" "$2"
-}
-cprint 42 "Success!"  # Green text
+set -euo pipefail
+
+if ! result=$(call_api); then
+    echo "API failed with: $result" >&2
+    exit 1
+fi
 ```
 
-**Node.js/Ink:**
-```tsx
-<Text color="#10B981">Success!</Text>
-```
-
-**Elixir/Termite:**
+**Elixir: Pattern Matching and Supervision**
 ```elixir
-Termite.Style.foreground(42)
-|> Termite.Style.render_to_string("Success!")
+case call_api() do
+  {:ok, result} -> process(result)
+  {:error, reason} -> handle_error(reason)
+end
+
+# Or let it crash, supervisor restarts
+def handle_call(:risky_operation, _from, state) do
+  result = do_risky_thing!()  # May crash
+  {:reply, result, state}
+end
+```
+
+**Verdict:** Elixir's "let it crash" philosophy is powerful for fault tolerance. Bash exit codes are simpler to trace.
+
+---
+
+## When to Use Each
+
+### Stay with Bash When:
+
+1. **Dependencies must be zero** - Script ships alone
+2. **Concurrency is low** - Tens of parallel operations, not thousands
+3. **State is simple** - Fits in files without complex queries
+4. **Observability is paramount** - Every operation must be traceable
+5. **Environment is constrained** - Only shell available
+
+### Graduate to Elixir When:
+
+1. **Concurrency needs grow** - Hundreds/thousands of concurrent operations
+2. **Fault tolerance is critical** - System must self-heal
+3. **State is complex** - Need structured queries, not just file reads
+4. **Hot code reload needed** - Can't afford restarts
+5. **Long-running processes** - Days/weeks of uptime expected
+
+---
+
+## The Hybrid Approach
+
+Use both. Elixir can shell out to Bash:
+
+```elixir
+defmodule ToolRunner do
+  def run_tool(tool, args) do
+    {output, exit_code} = System.cmd("./tools/#{tool}.sh", args,
+      stderr_to_stdout: true,
+      into: File.stream!("tool_output.log", [:append])
+    )
+
+    case exit_code do
+      0 -> {:ok, output}
+      _ -> {:error, output}
+    end
+  end
+end
+```
+
+And Bash can call Elixir:
+
+```bash
+#!/bin/bash
+# Orchestrator in bash, complex processing in Elixir
+
+result=$(elixir -e "IO.puts MyApp.process_complex_data()")
+echo "$result" >> results.log
 ```
 
 ---
 
-## When to Choose Each
+## Summary
 
-### Choose Bash When:
+| Need | Use |
+|------|-----|
+| Observable, simple, portable | Bash |
+| Scalable, fault-tolerant, complex | Elixir |
+| Best of both | Hybrid |
 
-1. **Zero dependencies required** - Script must run anywhere
-2. **Shipping with CLI tools** - Part of a larger shell script
-3. **Embedded/minimal systems** - Only bash available
-4. **Quick prototypes** - Test an idea fast
-5. **Learning fundamentals** - Understand how TUIs really work
-
-### Choose Node.js/Ink When:
-
-1. **Rich interactions** - Complex forms, animations
-2. **Team development** - TypeScript, testing, familiar patterns
-3. **Rapid iteration** - Hot reload, good debugging
-4. **Existing Node.js project** - Natural integration
-5. **Component reuse** - Build a design system
-
-### Choose Elixir/Termite When:
-
-1. **Long-running processes** - Days/weeks of uptime
-2. **Fault tolerance critical** - Must not crash
-3. **Concurrent operations** - Multiple parallel tasks
-4. **Part of larger Elixir system** - Phoenix, LiveView
-5. **Hot code deployment** - Update without restart
+The key insight: Both preserve Unix's observability model. Bash does it natively. Elixir does it through the BEAM's process model. Neither hides state in opaque abstractions.
 
 ---
 
-## The Surprising Winner: It Depends
+## Historical Note
 
-For this specific tutorial project:
+This curriculum previously included a Node.js/Ink implementation. While pleasant to write, Node.js was removed from consideration because it optimizes for authorship ergonomics at the cost of observability—the wrong trade-off in the agent era.
 
-| Criterion | Winner |
-|-----------|--------|
-| Fastest to build | Node.js/Ink |
-| Most portable | Bash |
-| Most reliable | Elixir/Termite |
-| Best DX | Node.js/Ink |
-| Smallest footprint | Bash |
-| Best for production | Depends on requirements |
-
-### My Recommendation
-
-**For most TUI projects: Start with Node.js/Ink**
-- Fastest development
-- Best tooling
-- Largest community
-
-**For scripts shipping with tools: Use Bash**
-- Zero dependencies
-- Universal availability
-
-**For mission-critical systems: Consider Elixir**
-- Fault tolerance
-- True concurrency
-
----
-
-## Key Learnings
-
-### 1. The Architecture Is Universal
-
-All three implementations converge on the same pattern:
-```
-State → Render → Input → Update → Repeat
-```
-
-This is The Elm Architecture, whether you call it that or not.
-
-### 2. Complexity Has Costs
-
-| Stack | Setup Cost | Runtime Cost | Maintenance Cost |
-|-------|------------|--------------|------------------|
-| Bash | None | None | High |
-| Node.js | Medium | Medium | Low |
-| Elixir | Medium | Medium | Low |
-
-Bash has no setup cost but high maintenance cost. The frameworks have setup cost but pay dividends in maintainability.
-
-### 3. Dependencies Are a Choice
-
-```
-Bash:    0 dependencies, 900 lines, all manual
-Node.js: 59 packages, 1200 lines, lots of help
-Elixir:  1 package, 1100 lines, some help
-```
-
-You're trading control for convenience. Both are valid.
-
-### 4. Terminal Fundamentals Don't Change
-
-Regardless of stack, you're ultimately:
-- Writing ANSI escape codes
-- Reading stdin character by character
-- Managing a state machine
-
-The frameworks just make these primitives more ergonomic.
-
----
-
-## Resources
-
-- [ANSI Escape Codes](https://en.wikipedia.org/wiki/ANSI_escape_code)
-- [Ink Documentation](https://github.com/vadimdemedes/ink)
-- [Termite on Hex](https://hex.pm/packages/termite)
-- [Bash Manual](https://www.gnu.org/software/bash/manual/)
+The bash→Elixir gradient preserves observability at every point on the spectrum.

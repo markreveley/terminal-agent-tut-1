@@ -2,7 +2,11 @@
 
 ## Overview
 
-This document captures architectural patterns learned from building the same interactive terminal tutorial in two different technology stacks.
+This document captures architectural patterns learned from building interactive terminal tutorials, with focus on Bash and Elixir implementations that prioritize observability.
+
+## Attribution
+
+The "Elm Architecture" (TEA) pattern referenced throughout originates from Evan Czaplicki's Elm programming language (2012). The pattern has since been adopted across many frameworks and languages, often without attribution. We note this as a demonstration of **provenance in ideas**—understanding where patterns come from is as valuable as understanding the patterns themselves.
 
 ---
 
@@ -37,16 +41,16 @@ Both implementations converge on a similar pattern, whether explicitly (Elixir) 
 
 ### Implementation Comparison
 
-| Aspect | React/Ink | Elixir |
-|--------|-----------|--------|
-| Model | `useState` hooks | GenServer state struct |
-| Update | Setter functions | `handle_cast` clauses |
-| View | JSX components | Pure render functions |
-| Trigger | Events via `useInput` | Pattern match on `poll()` |
+| Aspect | Bash | Elixir |
+|--------|------|--------|
+| Model | Global variables | GenServer state struct |
+| Update | Functions mutating globals | `handle_cast` clauses |
+| View | Functions printing ANSI | Pure render functions |
+| Trigger | `read -rsn1` in loop | Pattern match on `poll()` |
 
 ### Key Insight
 
-The Elm Architecture works universally for interactive applications. React hooks approximate it, while Elixir GenServers implement it more explicitly. The pattern enforces:
+The Elm Architecture works universally for interactive applications. Bash implements it implicitly through loops and global state, while Elixir GenServers implement it explicitly. The pattern enforces:
 
 1. **Unidirectional data flow** - State changes propagate downward
 2. **Predictable updates** - State transitions are explicit
@@ -116,18 +120,16 @@ Both implementations extract these reusable components:
 | `ConceptList` | Bulleted concept list |
 | `NavigationHint` | Keyboard shortcut display |
 
-### React/Ink Approach
+### Bash Approach
 
-```tsx
-// Components receive props and render JSX
-function ProgressBar({ value, max, width, color }) {
-  const filled = Math.round((value / max) * width);
-  return (
-    <Box>
-      <Text color={color}>{'█'.repeat(filled)}</Text>
-      <Text color="gray">{'░'.repeat(width - filled)}</Text>
-    </Box>
-  );
+```bash
+# Components are functions that echo ANSI sequences
+progress_bar() {
+    local value=$1 max=$2 width=$3
+    local filled=$((value * width / max))
+    local empty=$((width - filled))
+    printf "\033[32m%s\033[0m" "$(printf '█%.0s' $(seq 1 $filled))"
+    printf "\033[90m%s\033[0m" "$(printf '░%.0s' $(seq 1 $empty))"
 }
 ```
 
@@ -144,9 +146,11 @@ end
 
 ### Insight
 
-The component model works in both paradigms. The difference is:
-- **React**: Components manage their own input/state lifecycle
-- **Elixir**: Components are pure string transformations, state lives elsewhere
+The component model works in both paradigms. The key difference:
+- **Bash**: Components are functions that print directly; state is global
+- **Elixir**: Components are pure string transformations; state lives in GenServer
+
+Both approaches keep rendering observable—you can trace exactly what gets printed.
 
 ---
 
@@ -174,17 +178,26 @@ Input handling follows a state machine pattern:
 
 ### Implementation
 
-**React (implicit state machine):**
-```tsx
-useInput((input, key) => {
-  if (screen === 'home') {
-    if (key.return) goToLesson(1);
-    if ('12345'.includes(input)) goToLesson(parseInt(input));
-  } else if (screen.startsWith('lesson')) {
-    if (key.rightArrow) nextStep();
-    if (key.leftArrow) prevStep();
-  }
-});
+**Bash (case statement state machine):**
+```bash
+handle_input() {
+    case "$SCREEN" in
+        home)
+            case "$key" in
+                [1-5]) go_to_lesson "$key" ;;
+                '') go_to_lesson 1 ;;
+                q) exit 0 ;;
+            esac
+            ;;
+        lesson*)
+            case "$key" in
+                n|'') next_step ;;
+                p) prev_step ;;
+                q) SCREEN="home" ;;
+            esac
+            ;;
+    esac
+}
 ```
 
 **Elixir (explicit pattern matching):**
@@ -209,7 +222,7 @@ end
 
 ### Insight
 
-Elixir's pattern matching makes the state machine explicit and exhaustive. React's approach is more ad-hoc but works fine for simple cases.
+Both Bash's `case` statements and Elixir's pattern matching make state machines explicit and traceable. You can read the code and know exactly what state transitions are possible. This is observability at the code level.
 
 ---
 
@@ -251,22 +264,20 @@ Both implementations centralize visual constants:
 
 Each lesson follows a consistent structure that could be data-driven:
 
-```typescript
-interface Lesson {
-  number: number;
-  title: string;
-  steps: Step[];
-}
+```
+Lesson:
+  number: integer
+  title: string
+  steps: list of Step
 
-interface Step {
-  render: (state: State) => View;
-  maxSteps: number;
-}
+Step:
+  render: function(state) -> output
+  max_steps: integer
 ```
 
 ### Potential Improvement
 
-Both implementations hardcode lesson content in code. A more flexible approach:
+Implementations can hardcode lesson content in code. A more flexible approach:
 
 ```yaml
 # lessons/lesson1.yaml
@@ -298,11 +309,13 @@ This would enable:
 
 Regardless of technology stack, successful terminal UIs share these patterns:
 
-1. **Elm Architecture** for predictable state management
+1. **Elm Architecture** (Evan Czaplicki, 2012) for predictable state management
 2. **Progressive disclosure** for manageable complexity
 3. **Component composition** for reusable UI pieces
 4. **State machine input** for clear navigation
 5. **Theme centralization** for visual consistency
 6. **Data-driven content** for maintainability
 
-The implementation language affects ergonomics but not fundamental architecture.
+The implementation language affects ergonomics but not fundamental architecture. What matters more is whether the implementation preserves observability—can you see what state the system is in? Can you trace how it got there?
+
+In Bash, this comes naturally: state is in files and variables you can inspect. In Elixir, it requires using `:sys.get_state/1` and tracing tools, but the capability is preserved. Both maintain the Unix philosophy of observable systems.
